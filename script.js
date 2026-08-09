@@ -1,444 +1,509 @@
-/* ==========================================================================
-   THE LITTLE JOURNEY — SCRIPT
-   Sections: 1. State  2. Scene order + progress  3. Scene transitions
-   4. Loading sequence  5. Typewriter helpers  6. Chapter wiring
-   7. Ambient toasts  8. Sound  9. Particles  10. Memory tree  11. Init
-   ========================================================================== */
+/*
+  THE LITTLE JOURNEY
+  Vanilla JavaScript story engine.
+  No frameworks. No backend. GitHub Pages friendly.
+*/
 
-(() => {
-  'use strict';
+const scene = document.getElementById("scene");
+const sceneVisual = document.getElementById("sceneVisual");
+const companion = document.getElementById("companion");
+const eyebrow = document.getElementById("eyebrow");
+const title = document.getElementById("title");
+const dialogue = document.getElementById("dialogue");
+const choices = document.getElementById("choices");
+const primaryAction = document.getElementById("primaryAction");
+const textInputWrap = document.getElementById("textInputWrap");
+const futureMessage = document.getElementById("futureMessage");
+const saveMessage = document.getElementById("saveMessage");
+const progress = document.getElementById("progress");
+const chapterIndicator = document.getElementById("chapterIndicator");
+const soundToggle = document.getElementById("soundToggle");
+const soundIcon = document.getElementById("soundIcon");
 
-  /* ---------- 1. STATE ---------- */
-  // Central place to store every choice the player makes.
-  // Keeping this in one object makes it easy to add new chapters later:
-  // just add a key here and read/write it the same way the others do.
-  const state = {
-    ch1: null,   // door: gold | blue | green
-    ch2: null,   // backpack item
-    ch3: null,   // mirror answer
-    ch4: '',     // letter text
-    ch5: null    // kindness gift
-  };
+const state = {
+  chapter: 0,
+  door: null,
+  burden: null,
+  proudOf: null,
+  kindness: null,
+  futureMessage: "",
+  sound: true
+};
 
-  /* ---------- 2. SCENE ORDER + PROGRESS ---------- */
-  const SCENE_ORDER = [
-    'scene-title', 'scene-ch1', 'scene-ch2', 'scene-ch3',
-    'scene-ch4', 'scene-ch5', 'scene-final'
-  ];
-  // Chapters shown in the progress dots (title screen excluded).
-  const PROGRESS_SCENES = ['scene-ch1', 'scene-ch2', 'scene-ch3', 'scene-ch4', 'scene-ch5', 'scene-final'];
-
-  const progressEl = document.getElementById('progress');
-  const progressLabel = document.getElementById('progressLabel');
-  const progressDots = document.getElementById('progressDots');
-
-  function buildProgressDots(){
-    progressDots.innerHTML = '';
-    PROGRESS_SCENES.forEach(() => {
-      const dot = document.createElement('span');
-      progressDots.appendChild(dot);
-    });
+const chapters = [
+  {
+    eyebrow: "A tiny invitation",
+    title: "There's a little place I want to show you.",
+    dialogue: [
+      "Don't worry. There's no test here.",
+      "Just a short journey. You can take it at your own pace.",
+      "And honestly... I think you might find something interesting along the way."
+    ],
+    action: "Follow the light →",
+    mood: "warm"
+  },
+  {
+    eyebrow: "Chapter one · The Door",
+    title: "Every journey begins with a choice.",
+    dialogue: [
+      "There are three doors in front of you.",
+      "Don't overthink it. Pick the one that feels right."
+    ],
+    choices: [
+      { id: "warm", icon: "☀️", label: "The golden door", hint: "It feels warm somehow." },
+      { id: "calm", icon: "🌊", label: "The blue door", hint: "It feels strangely peaceful." },
+      { id: "growth", icon: "🌿", label: "The green door", hint: "Something beyond it feels alive." }
+    ],
+    mood: "warm"
+  },
+  {
+    eyebrow: "Chapter two · The Invisible Backpack",
+    title: "Everyone carries something nobody sees.",
+    dialogue: [
+      "Imagine you are walking along a quiet path.",
+      "There's a backpack beside you. You can only put one thing inside."
+    ],
+    choices: [
+      { id: "memories", icon: "❤️", label: "Memories", hint: "The good ones are worth keeping." },
+      { id: "difficult", icon: "🌧️", label: "Difficult moments", hint: "You learned something from them." },
+      { id: "dreams", icon: "🌱", label: "Dreams", hint: "Some things are still waiting for you." },
+      { id: "lessons", icon: "⭐", label: "Lessons", hint: "The past has a few things to teach." }
+    ],
+    mood: "forest"
+  },
+  {
+    eyebrow: "Chapter three · The Mirror",
+    title: "This mirror doesn't show your face.",
+    dialogue: [
+      "It shows the things people sometimes forget about themselves.",
+      "Take a second. What are you quietly proud of?"
+    ],
+    choices: [
+      { id: "never-gave-up", icon: "🔥", label: "I never gave up", hint: "Even when it was hard." },
+      { id: "care", icon: "❤️", label: "I care about people", hint: "It matters to me." },
+      { id: "grown", icon: "🌱", label: "I've grown", hint: "I'm not who I used to be." },
+      { id: "trying", icon: "✨", label: "I'm still trying", hint: "And that counts." }
+    ],
+    mood: "blue"
+  },
+  {
+    eyebrow: "Chapter four · The Letter",
+    title: "If you could send one message to your future self...",
+    dialogue: [
+      "What would you want them to remember?",
+      "It doesn't have to sound wise. It doesn't have to be perfect.",
+      "Just make it honest."
+    ],
+    mood: "blue",
+    input: true
+  },
+  {
+    eyebrow: "Chapter five · The Kindness Challenge",
+    title: "You have the power to make someone's day better.",
+    dialogue: [
+      "Not with anything huge.",
+      "Sometimes the smallest things land the deepest.",
+      "What would you give?"
+    ],
+    choices: [
+      { id: "compliment", icon: "🌹", label: "A compliment", hint: "Something they might need to hear." },
+      { id: "smile", icon: "☀️", label: "A smile", hint: "Just a little warmth." },
+      { id: "help", icon: "🤝", label: "A hand", hint: "Help when it is needed." },
+      { id: "time", icon: "🕯️", label: "My time", hint: "Really being there." }
+    ],
+    mood: "warm"
+  },
+  {
+    eyebrow: "The final message",
+    title: "You made it.",
+    dialogue: [
+      "But this journey was never really about discovering who you are.",
+      "You already knew.",
+      "Maybe you just needed a quiet moment to remember."
+    ],
+    mood: "sunrise",
+    final: true
   }
+];
 
-  function updateProgress(sceneId){
-    const idx = PROGRESS_SCENES.indexOf(sceneId);
-    if (idx === -1){
-      progressEl.hidden = true;
-      return;
-    }
-    progressEl.hidden = false;
-    progressLabel.textContent = `Chapter ${idx + 1} of ${PROGRESS_SCENES.length}`;
-    [...progressDots.children].forEach((dot, i) => {
-      dot.classList.toggle('is-active', i === idx);
-    });
+const responses = {
+  door: {
+    warm: "You chose warmth. Maybe you're someone who notices the little things — a good conversation, a familiar laugh, a moment that makes an ordinary day feel better.",
+    calm: "You chose calm. Maybe you notice things other people rush past. There's something good about being able to slow down and actually see what is around you.",
+    growth: "You chose growth. Maybe part of you believes tomorrow can be better than today. That's a pretty good thing to carry with you."
+  },
+  burden: {
+    memories: "Your memories are part of your story. Keep the ones that make you smile, and let the painful ones teach you without letting them run your life.",
+    difficult: "The difficult moments are real, but they are not the whole story. The fact that you kept moving says more about you than you might give yourself credit for.",
+    dreams: "There is something lovely about people who still have dreams. It means some part of you still believes there is more to discover.",
+    lessons: "The past can teach you a lot. But it doesn't get to decide who you become next."
+  },
+  proud: {
+    "never-gave-up": "That's worth being proud of. Not everyone sees the battles you've had to get through. You do — and you kept going.",
+    care: "Caring about people is not a small thing. The world genuinely needs people who still notice when someone needs a little kindness.",
+    grown: "Growth can be quiet. Sometimes you only notice it when you look back and realize you're handling life differently now.",
+    trying: "Trying counts. Seriously. You don't have to have everything figured out for your effort to mean something."
+  },
+  kindness: {
+    compliment: "A kind sentence can stay with someone for a surprisingly long time. You never really know when someone needs to hear something good.",
+    smile: "A smile sounds small, but sometimes it is exactly enough to make a difficult day feel a little lighter.",
+    help: "Small acts of help are how people make life easier for each other. It doesn't have to be dramatic to matter.",
+    time: "Giving someone your attention is a real gift. Being fully there for someone is rarer than it should be."
   }
+};
 
-  /* ---------- 3. SCENE TRANSITIONS ---------- */
-  let currentScene = 'scene-loading';
+const saved = localStorage.getItem("littleJourneyProgress");
+if (saved) {
+  try {
+    Object.assign(state, JSON.parse(saved));
+  } catch (_) {}
+}
 
-  function goTo(sceneId){
-    const outgoing = document.getElementById(currentScene);
-    const incoming = document.getElementById(sceneId);
-    if (!incoming || sceneId === currentScene) return;
+function saveState() {
+  localStorage.setItem("littleJourneyProgress", JSON.stringify(state));
+}
 
-    playSound('whoosh');
-
-    if (outgoing){
-      outgoing.classList.add('is-leaving');
-      outgoing.classList.remove('is-entering');
-      setTimeout(() => {
-        outgoing.classList.remove('is-active', 'is-leaving');
-      }, 480);
-    }
-
-    setTimeout(() => {
-      incoming.classList.add('is-active', 'is-entering');
-      currentScene = sceneId;
-      updateProgress(sceneId);
-      runSceneEnter(sceneId);
-      maybeShowAmbientToast();
-    }, outgoing ? 380 : 0);
-  }
-
-  // Wire every [data-next] button once, up front.
-  document.querySelectorAll('[data-next]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      playSound('click');
-      goTo(btn.dataset.next);
-    });
+function buildProgress() {
+  progress.innerHTML = "";
+  chapters.slice(0, 7).forEach((_, i) => {
+    const dot = document.createElement("span");
+    dot.className = "progress-dot" + (i <= state.chapter ? " active" : "");
+    progress.appendChild(dot);
   });
+}
 
-  /* ---------- 4. LOADING SEQUENCE ---------- */
-  const loadingText = document.getElementById('loadingText');
-  const startBtn = document.getElementById('startBtn');
+function setText(element, value) {
+  element.textContent = value;
+}
 
-  const loadingLines = ['Preparing your journey...', 'Take your time.', "Let's begin."];
+function renderChapter(index, transition = true) {
+  state.chapter = index;
+  saveState();
 
-  function typeLine(el, text, speed = 38){
-    return new Promise(resolve => {
-      el.textContent = '';
-      let i = 0;
-      const timer = setInterval(() => {
-        el.textContent += text[i];
-        i++;
-        if (i >= text.length){
-          clearInterval(timer);
-          resolve();
-        }
-      }, speed);
+  const data = chapters[index];
+  if (transition) {
+    scene.classList.add("leaving");
+    setTimeout(() => renderContent(data), 420);
+  } else {
+    renderContent(data);
+  }
+}
+
+function renderContent(data) {
+  scene.classList.remove("leaving");
+  scene.classList.remove("arriving");
+  void scene.offsetWidth;
+  scene.classList.add("arriving");
+
+  eyebrow.textContent = data.eyebrow;
+  title.textContent = data.title;
+  dialogue.innerHTML = data.dialogue.map(text => `<p>${escapeHTML(text)}</p>`).join("");
+  choices.innerHTML = "";
+  textInputWrap.classList.add("hidden");
+  primaryAction.classList.remove("hidden");
+  primaryAction.textContent = data.action || "Continue →";
+
+  scene.dataset.mood = data.mood || "warm";
+  chapterIndicator.textContent = data.final ? "A little reminder" : `Chapter ${state.chapter} of 6`;
+
+  if (data.choices) {
+    primaryAction.classList.add("hidden");
+    data.choices.forEach(choice => {
+      const button = document.createElement("button");
+      button.className = "choice";
+      button.type = "button";
+      button.innerHTML = `<strong>${choice.icon} ${escapeHTML(choice.label)}</strong><small>${escapeHTML(choice.hint)}</small>`;
+      button.addEventListener("click", () => choose(data, choice, button));
+      choices.appendChild(button);
     });
   }
 
-  async function runLoadingSequence(){
-    for (const line of loadingLines){
-      await typeLine(loadingText, line);
-      await wait(650);
-      loadingText.textContent = '';
-      await wait(150);
+  if (data.input) {
+    primaryAction.classList.add("hidden");
+    textInputWrap.classList.remove("hidden");
+    futureMessage.value = state.futureMessage || "";
+    setTimeout(() => futureMessage.focus(), 300);
+  }
+
+  if (data.final) renderFinal();
+  buildProgress();
+}
+
+function choose(data, choice, button) {
+  [...choices.children].forEach(el => el.classList.remove("selected"));
+  button.classList.add("selected");
+  softChime();
+
+  let response = "";
+
+  if (state.chapter === 1) {
+    state.door = choice.id;
+    response = responses.door[choice.id];
+  } else if (state.chapter === 2) {
+    state.burden = choice.id;
+    response = responses.burden[choice.id];
+  } else if (state.chapter === 3) {
+    state.proudOf = choice.id;
+    response = responses.proud[choice.id];
+  } else if (state.chapter === 5) {
+    state.kindness = choice.id;
+    response = responses.kindness[choice.id];
+  }
+
+  saveState();
+
+  setTimeout(() => {
+    dialogue.innerHTML = `<p>${escapeHTML(response)}</p><p class="choice-followup">Interesting choice. Keep walking.</p>`;
+    primaryAction.classList.remove("hidden");
+    primaryAction.textContent = state.chapter === 5 ? "See where this leads →" : "Keep going →";
+  }, 450);
+}
+
+primaryAction.addEventListener("click", () => {
+  if (state.chapter === 0) {
+    startJourneyAudio();
+  }
+  if (state.chapter < chapters.length - 1) {
+    renderChapter(state.chapter + 1);
+  }
+});
+
+saveMessage.addEventListener("click", () => {
+  const value = futureMessage.value.trim();
+  if (!value) {
+    futureMessage.focus();
+    futureMessage.placeholder = "Write something honest. Even one sentence is enough.";
+    return;
+  }
+
+  state.futureMessage = value;
+  saveState();
+  softChime();
+
+  textInputWrap.classList.add("hidden");
+  primaryAction.classList.remove("hidden");
+  primaryAction.textContent = "Continue →";
+
+  dialogue.innerHTML = `
+    <p>Keep that somewhere safe.</p>
+    <p>One day, you might read it again and realize how far you've come.</p>
+  `;
+});
+
+function renderFinal() {
+  const future = state.futureMessage
+    ? `<div class="letter"><strong>A little note from you, to you:</strong><br><br>“${escapeHTML(state.futureMessage)}”</div>`
+    : "";
+
+  const combined = getFinalReflection();
+
+  dialogue.innerHTML = `
+    <p class="final-message">${escapeHTML(combined)}</p>
+    ${future}
+  `;
+
+  choices.innerHTML = "";
+  primaryAction.textContent = "Take the journey again ↻";
+  primaryAction.classList.remove("hidden");
+  primaryAction.onclick = restartJourney;
+  scene.classList.add("celebrate");
+
+  burstConfetti();
+}
+
+function getFinalReflection() {
+  const parts = [];
+
+  if (state.door === "warm") {
+    parts.push("You seem to notice warmth in small things.");
+  } else if (state.door === "calm") {
+    parts.push("You seem to value quiet moments and the things that are easy to miss.");
+  } else {
+    parts.push("You seem to have a part of you that still believes in becoming something better.");
+  }
+
+  if (state.proudOf === "care") {
+    parts.push("And you care about people — don't let the world convince you that softness is weakness.");
+  } else if (state.proudOf === "never-gave-up") {
+    parts.push("You've kept going through things other people may never know about.");
+  } else if (state.proudOf === "grown") {
+    parts.push("You've changed, and that's a good thing.");
+  } else if (state.proudOf === "trying") {
+    parts.push("You're still trying, and that matters more than having all the answers.");
+  }
+
+  if (state.kindness === "time") {
+    parts.push("You chose to give time, too. That's one of the most human things you can give.");
+  } else if (state.kindness === "compliment") {
+    parts.push("You chose words that could make somebody feel seen.");
+  }
+
+  parts.push("So keep your curiosity. Keep your kindness. Keep becoming.");
+  parts.push("You don't need to have everything figured out to be doing okay.");
+
+  return parts.join(" ");
+}
+
+function restartJourney() {
+  Object.assign(state, {
+    chapter: 0,
+    door: null,
+    burden: null,
+    proudOf: null,
+    kindness: null,
+    futureMessage: ""
+  });
+  saveState();
+  scene.classList.remove("celebrate");
+  primaryAction.onclick = null;
+  renderChapter(0);
+}
+
+function escapeHTML(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+/* ---------------------------
+   Lightweight ambient particles
+---------------------------- */
+const canvas = document.getElementById("particleCanvas");
+const ctx = canvas.getContext("2d");
+let particles = [];
+
+function resizeCanvas() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = innerWidth * dpr;
+  canvas.height = innerHeight * dpr;
+  canvas.style.width = `${innerWidth}px`;
+  canvas.style.height = `${innerHeight}px`;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function seedParticles() {
+  particles = Array.from({ length: Math.min(70, Math.floor(innerWidth / 15)) }, () => ({
+    x: Math.random() * innerWidth,
+    y: Math.random() * innerHeight,
+    r: Math.random() * 1.8 + .3,
+    a: Math.random() * .45 + .08,
+    speed: Math.random() * .22 + .05,
+    drift: (Math.random() - .5) * .12
+  }));
+}
+
+function animateParticles() {
+  ctx.clearRect(0, 0, innerWidth, innerHeight);
+  particles.forEach(p => {
+    p.y -= p.speed;
+    p.x += p.drift;
+    if (p.y < -10) {
+      p.y = innerHeight + 10;
+      p.x = Math.random() * innerWidth;
     }
-    startBtn.hidden = false;
-    startBtn.addEventListener('click', () => {
-      playSound('click');
-      document.getElementById('scene-loading').classList.remove('is-active');
-      const title = document.getElementById('scene-title');
-      title.classList.add('is-active', 'is-entering');
-      currentScene = 'scene-title';
-    });
-  }
+    if (p.x < -10) p.x = innerWidth + 10;
+    if (p.x > innerWidth + 10) p.x = -10;
 
-  function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
-
-  /* ---------- 5. TYPEWRITER / REVEAL HELPERS ---------- */
-  // Story lines fade in one after another whenever a scene becomes active,
-  // giving each chapter a gentle narrative rhythm instead of dumping all
-  // text on screen at once.
-  function revealStoryText(root){
-    const lines = root.querySelectorAll('[data-typewrite], [data-typewrite-final]');
-    lines.forEach((line, i) => {
-      line.classList.remove('is-visible');
-      setTimeout(() => line.classList.add('is-visible'), 300 + i * 550);
-    });
-  }
-
-  function runSceneEnter(sceneId){
-    const scene = document.getElementById(sceneId);
-    revealStoryText(scene);
-
-    if (sceneId === 'scene-final'){
-      const totalDelay = 300 + 3 * 550 + 700;
-      setTimeout(showFinalMessage, totalDelay);
-    }
-  }
-
-  function showFinalMessage(){
-    const msg = document.getElementById('finalMessage');
-    const actions = document.getElementById('finalActions');
-    msg.hidden = false;
-    msg.querySelectorAll('p').forEach((p, i) => {
-      p.style.animationDelay = `${i * 260}ms`;
-    });
-    playSound('chime');
-    setTimeout(() => { actions.hidden = false; }, msg.querySelectorAll('p').length * 260 + 500);
-  }
-
-  /* ---------- 6. CHAPTER WIRING ---------- */
-
-  // --- Chapter 1: The Door ---
-  const ch1Responses = {
-    gold: ['You chose warmth.', 'Maybe you are someone who finds happiness in small moments.'],
-    blue: ['You chose calm.', 'Maybe you notice things others often miss.'],
-    green: ['You chose growth.', 'Maybe you believe tomorrow can always be better.']
-  };
-
-  document.querySelectorAll('.door').forEach(door => {
-    door.addEventListener('click', () => {
-      const value = door.dataset.value;
-      state.ch1 = value;
-      playSound('click');
-
-      document.querySelectorAll('.door').forEach(d => {
-        d.classList.toggle('is-chosen', d === door);
-        d.classList.toggle('is-faded', d !== door);
-      });
-
-      const [line1, line2] = ch1Responses[value];
-      document.getElementById('ch1-response-1').textContent = line1;
-      document.getElementById('ch1-response-2').textContent = line2;
-      const resp = document.getElementById('ch1-response');
-      resp.hidden = false;
-      resp.querySelectorAll('.response__line').forEach(l => {
-        l.style.animation = 'none'; l.offsetHeight; l.style.animation = null;
-      });
-    });
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255, 241, 190, ${p.a})`;
+    ctx.fill();
   });
+  requestAnimationFrame(animateParticles);
+}
 
-  // --- Chapter 2: The Invisible Backpack ---
-  const ch2Responses = {
-    memories: 'Your memories are part of your story. They helped create who you are.',
-    difficult: 'The difficult moments did not define you. The fact that you kept moving says a lot.',
-    dreams: 'There is something beautiful about people who still believe something better is possible.',
-    lessons: 'The past teaches us, but it does not decide our future.'
-  };
-  wireChoiceGroup('ch2-choices', 'ch2', ch2Responses, 'ch2-response', 'ch2-response-text');
+window.addEventListener("resize", () => {
+  resizeCanvas();
+  seedParticles();
+});
 
-  // --- Chapter 3: The Mirror ---
-  const ch3Responses = {
-    'never-gave-up': 'Not everyone sees the battles you have won.',
-    'care': 'The world needs more people who still choose kindness.',
-    'grown': 'Growth is not always visible, but it is always meaningful.',
-    'still-trying': 'Trying is underrated. Every change starts with someone refusing to quit.'
-  };
-  wireChoiceGroup('ch3-choices', 'ch3', ch3Responses, 'ch3-response', 'ch3-response-text');
+resizeCanvas();
+seedParticles();
+animateParticles();
 
-  // --- Chapter 5: The Kindness Challenge ---
-  const ch5Responses = {
-    compliment: 'Sometimes one kind sentence stays with someone longer than we realize.',
-    smile: "A smile is small, but it can change someone's entire day.",
-    help: 'Small acts of kindness are how the world becomes softer.',
-    time: 'Giving someone your attention is one of the most valuable gifts.'
-  };
-  wireChoiceGroup('ch5-choices', 'ch5', ch5Responses, 'ch5-response', 'ch5-response-text');
+/* ---------------------------
+   Tiny Web Audio layer
+   Starts only after user interaction.
+---------------------------- */
+let audioContext = null;
+let masterGain = null;
 
-  function wireChoiceGroup(gridId, stateKey, responses, responseBoxId, responseTextId){
-    const grid = document.getElementById(gridId);
-    if (!grid) return;
-    grid.querySelectorAll('.choice-card').forEach(card => {
-      card.addEventListener('click', () => {
-        const value = card.dataset.value;
-        state[stateKey] = value;
-        playSound('click');
-
-        grid.querySelectorAll('.choice-card').forEach(c => {
-          c.classList.toggle('is-chosen', c === card);
-          c.classList.toggle('is-faded', c !== card);
-        });
-
-        const box = document.getElementById(responseBoxId);
-        document.getElementById(responseTextId).textContent = responses[value];
-        box.hidden = false;
-      });
-    });
+function ensureAudio() {
+  if (!state.sound) return null;
+  if (!audioContext) {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = audioContext.createGain();
+    masterGain.gain.value = 0.055;
+    masterGain.connect(audioContext.destination);
   }
+  if (audioContext.state === "suspended") audioContext.resume();
+  return audioContext;
+}
 
-  // --- Chapter 4: The Letter ---
-  const letterSubmit = document.getElementById('letterSubmit');
-  const letterText = document.getElementById('letterText');
-  const letterInputWrap = document.getElementById('letter-input');
-  const letterEcho = document.getElementById('letterEcho');
-
-  letterSubmit.addEventListener('click', () => {
-    const value = letterText.value.trim();
-    state.ch4 = value;
-    playSound('click');
-
-    letterEcho.textContent = value || "I hope you're proud of how far you've come.";
-    letterInputWrap.hidden = true;
-    document.getElementById('ch4-response').hidden = false;
+function softChime() {
+  const ac = ensureAudio();
+  if (!ac) return;
+  const now = ac.currentTime;
+  [523.25, 659.25].forEach((freq, i) => {
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.type = "sine";
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, now + i * .05);
+    gain.gain.exponentialRampToValueAtTime(.35, now + i * .05 + .025);
+    gain.gain.exponentialRampToValueAtTime(.0001, now + i * .05 + .5);
+    osc.connect(gain).connect(masterGain);
+    osc.start(now + i * .05);
+    osc.stop(now + i * .05 + .55);
   });
+}
 
-  /* ---------- 7. AMBIENT TOASTS ---------- */
-  const AMBIENT_MESSAGES = [
-    'Someone is lucky to know you.',
-    'Your effort matters.',
-    'Keep your heart soft.',
-    'You are doing better than you think.'
-  ];
-  const toastEl = document.getElementById('ambientToast');
-  let toastCount = 0;
+function startJourneyAudio() {
+  ensureAudio();
+  softChime();
+}
 
-  function maybeShowAmbientToast(){
-    // Show an ambient message on roughly every other transition, so it
-    // feels like a passing thought rather than a repeating notification.
-    toastCount++;
-    if (toastCount % 2 !== 0) return;
-    const msg = AMBIENT_MESSAGES[Math.floor(Math.random() * AMBIENT_MESSAGES.length)];
-    toastEl.textContent = msg;
-    requestAnimationFrame(() => toastEl.classList.add('is-visible'));
-    setTimeout(() => toastEl.classList.remove('is-visible'), 3200);
+soundToggle.addEventListener("click", () => {
+  state.sound = !state.sound;
+  soundIcon.textContent = state.sound ? "♪" : "×";
+  saveState();
+  if (state.sound) {
+    ensureAudio();
+    softChime();
   }
+});
 
-  /* ---------- 8. SOUND ---------- */
-  // Tiny, dependency-free tones generated with the Web Audio API so the
-  // project needs no external audio files to feel alive. Real ambient
-  // music/sfx can be dropped into assets/audio and swapped in later
-  // (see README "Suggested assets").
-  let audioCtx;
-  function getCtx(){
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    return audioCtx;
+function burstConfetti() {
+  const colors = ["#ffd166", "#ffb7c5", "#ffffff", "#a7e8b2", "#9fd8ff"];
+  for (let i = 0; i < 34; i++) {
+    const piece = document.createElement("span");
+    piece.style.position = "fixed";
+    piece.style.left = `${50 + (Math.random() - .5) * 16}%`;
+    piece.style.top = "45%";
+    piece.style.width = "7px";
+    piece.style.height = "11px";
+    piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+    piece.style.borderRadius = "2px";
+    piece.style.zIndex = "30";
+    piece.style.pointerEvents = "none";
+    document.body.appendChild(piece);
+
+    const dx = (Math.random() - .5) * 420;
+    const dy = 250 + Math.random() * 420;
+    const rot = Math.random() * 720 - 360;
+
+    piece.animate([
+      { transform: "translate(-50%, -50%) rotate(0deg)", opacity: 1 },
+      { transform: `translate(calc(-50% + ${dx}px), ${dy}px) rotate(${rot}deg)`, opacity: 0 }
+    ], {
+      duration: 1200 + Math.random() * 800,
+      easing: "cubic-bezier(.2,.8,.2,1)"
+    }).onfinish = () => piece.remove();
   }
-  function playSound(kind){
-    try{
-      const ctx = getCtx();
-      const now = ctx.currentTime;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
+}
 
-      if (kind === 'click'){
-        osc.type = 'sine'; osc.frequency.setValueAtTime(660, now);
-        gain.gain.setValueAtTime(0.06, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
-        osc.start(now); osc.stop(now + 0.2);
-      } else if (kind === 'whoosh'){
-        osc.type = 'sine'; osc.frequency.setValueAtTime(220, now);
-        osc.frequency.exponentialRampToValueAtTime(90, now + 0.4);
-        gain.gain.setValueAtTime(0.03, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
-        osc.start(now); osc.stop(now + 0.42);
-      } else if (kind === 'chime'){
-        [523.25, 659.25, 784].forEach((freq, i) => {
-          const o = ctx.createOscillator(); const g = ctx.createGain();
-          o.connect(g); g.connect(ctx.destination);
-          o.type = 'sine'; o.frequency.setValueAtTime(freq, now + i * 0.16);
-          g.gain.setValueAtTime(0.0001, now + i * 0.16);
-          g.gain.linearRampToValueAtTime(0.05, now + i * 0.16 + 0.05);
-          g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.16 + 1.1);
-          o.start(now + i * 0.16); o.stop(now + i * 0.16 + 1.2);
-        });
-      }
-    } catch(e){ /* audio not available — fail silently */ }
-  }
-
-  /* ---------- 9. FLOATING PARTICLES ---------- */
-  const canvas = document.getElementById('particles');
-  const ctx2d = canvas.getContext('2d');
-  let particles = [];
-  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-  function resizeCanvas(){
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-  }
-  function makeParticles(){
-    const count = window.innerWidth < 600 ? 18 : 34;
-    particles = Array.from({ length: count }, () => ({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height,
-      r: Math.random() * 1.8 + 0.6,
-      speed: Math.random() * 0.35 + 0.08,
-      drift: (Math.random() - 0.5) * 0.25,
-      alpha: Math.random() * 0.5 + 0.2
-    }));
-  }
-  function animateParticles(){
-    ctx2d.clearRect(0, 0, canvas.width, canvas.height);
-    particles.forEach(p => {
-      p.y -= p.speed;
-      p.x += p.drift;
-      if (p.y < -10){ p.y = canvas.height + 10; p.x = Math.random() * canvas.width; }
-      ctx2d.beginPath();
-      ctx2d.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      ctx2d.fillStyle = `rgba(255, 209, 102, ${p.alpha})`;
-      ctx2d.fill();
-    });
-    requestAnimationFrame(animateParticles);
-  }
-
-  window.addEventListener('resize', () => { resizeCanvas(); makeParticles(); });
-
-  /* ---------- 10. MEMORY TREE (Final Chapter) ---------- */
-  // The player's choices shape the tree: kindness → flowers,
-  // growth-flavoured choices → leaves, dream/reflective choices → stars.
-  function decorateTree(){
-    const decorGroup = document.getElementById('treeDecor');
-    decorGroup.innerHTML = '';
-
-    const branchTips = [
-      { x: 80, y: 118 }, { x: 220, y: 118 }, { x: 150, y: 78 },
-      { x: 110, y: 150 }, { x: 190, y: 150 }, { x: 150, y: 130 }
-    ];
-
-    const decorTypes = [];
-    if (state.ch5) decorTypes.push('flower', 'flower');
-    if (state.ch1 === 'green' || state.ch3 === 'grown' || state.ch3 === 'still-trying') decorTypes.push('leaf', 'leaf');
-    if (state.ch2 === 'dreams' || state.ch1 === 'blue') decorTypes.push('star', 'star');
-    if (state.ch3) decorTypes.push('leaf');
-    if (state.ch2) decorTypes.push('leaf');
-    if (state.ch4) decorTypes.push('star');
-    // Always guarantee a few decorations even on a minimal playthrough.
-    while (decorTypes.length < 6) decorTypes.push('leaf');
-
-    decorTypes.slice(0, branchTips.length + 3).forEach((type, i) => {
-      const tip = branchTips[i % branchTips.length];
-      const jitterX = tip.x + (Math.random() - 0.5) * 30;
-      const jitterY = tip.y + (Math.random() - 0.5) * 26;
-      const el = document.createElementNS('http://www.w3.org/2000/svg', type === 'star' ? 'text' : 'circle');
-
-      if (type === 'star'){
-        el.setAttribute('x', jitterX);
-        el.setAttribute('y', jitterY);
-        el.setAttribute('font-size', '14');
-        el.setAttribute('fill', '#FFD166');
-        el.textContent = '✦';
-      } else {
-        el.setAttribute('cx', jitterX);
-        el.setAttribute('cy', jitterY);
-        el.setAttribute('r', type === 'flower' ? 5 : 4);
-        el.setAttribute('fill', type === 'flower' ? '#FFB7C5' : '#8fd39a');
-      }
-      el.classList.add('decor');
-      el.style.animationDelay = `${1.4 + i * 0.15}s`;
-      decorGroup.appendChild(el);
-    });
-  }
-
-  /* ---------- 11. RESTART ---------- */
-  document.getElementById('restartBtn').addEventListener('click', () => {
-    Object.keys(state).forEach(k => state[k] = typeof state[k] === 'string' ? '' : null);
-
-    document.querySelectorAll('.door, .choice-card').forEach(el => el.classList.remove('is-chosen', 'is-faded'));
-    document.querySelectorAll('.response').forEach(el => el.hidden = true);
-    document.getElementById('letter-input').hidden = false;
-    document.getElementById('letterText').value = '';
-    document.getElementById('finalMessage').hidden = true;
-    document.getElementById('finalActions').hidden = true;
-    document.getElementById('treeDecor').innerHTML = '';
-
-    document.querySelectorAll('.scene').forEach(s => s.classList.remove('is-active', 'is-entering'));
-    const title = document.getElementById('scene-title');
-    title.classList.add('is-active', 'is-entering');
-    currentScene = 'scene-title';
-    updateProgress('scene-title');
-    toastCount = 0;
-  });
-
-  // Rebuild the tree the moment the final scene is reached.
-  const finalObserver = new MutationObserver(() => {
-    if (document.getElementById('scene-final').classList.contains('is-active')){
-      decorateTree();
-    }
-  });
-  finalObserver.observe(document.getElementById('scene-final'), { attributes: true, attributeFilter: ['class'] });
-
-  /* ---------- 12. INIT ---------- */
-  function init(){
-    buildProgressDots();
-    resizeCanvas();
-    makeParticles();
-    if (!reduceMotion) requestAnimationFrame(animateParticles);
-    runLoadingSequence();
-  }
-
-  init();
-})();
+/* First render */
+renderChapter(Math.min(state.chapter, chapters.length - 1), false);
