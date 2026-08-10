@@ -1,67 +1,259 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#111827" />
-  <meta name="description" content="The Little Journey — a small interactive adventure to discover something you may have forgotten about yourself." />
-  <title>The Little Journey</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css" />
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
+<title>The Little Journey — A small adventure to discover something you may have forgotten about yourself.</title>
+<meta name="description" content="A small interactive journey to discover something you may have forgotten about yourself." />
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="app" class="app">
-    <canvas id="particleCanvas" aria-hidden="true"></canvas>
-    <div class="aurora aurora-one" aria-hidden="true"></div>
-    <div class="aurora aurora-two" aria-hidden="true"></div>
 
-    <header class="topbar">
-      <div class="brand">The Little Journey</div>
-      <div class="chapter-indicator" id="chapterIndicator">A little adventure</div>
-    </header>
+<!-- Ambient animated background, lives behind every scene -->
+<div class="sky" id="sky" aria-hidden="true">
+  <div class="stars"></div>
+  <div class="stars stars--far"></div>
+  <div class="glow glow--one"></div>
+  <div class="glow glow--two"></div>
+</div>
 
-    <main id="game" class="game" aria-live="polite">
-      <section id="scene" class="scene scene-intro">
-        <div id="sceneVisual" class="scene-visual">
-          <div class="glow-orb" id="companion" aria-hidden="true">
-            <span class="orb-core"></span>
-            <span class="orb-ring"></span>
-          </div>
-        </div>
+<!-- Floating particle layer -->
+<canvas id="particles" aria-hidden="true"></canvas>
 
-        <div class="story-card" id="storyCard">
-          <div class="eyebrow" id="eyebrow">A tiny invitation</div>
-          <h1 id="title">There's a little place I want to show you.</h1>
-          <div class="dialogue" id="dialogue">
-            <p>Don't worry. There's no test here.</p>
-            <p>Just a short journey. You can take it at your own pace.</p>
-          </div>
+<!-- Progress indicator -->
+<nav class="progress" id="progress" aria-label="Journey progress" hidden>
+  <span class="progress__label" id="progressLabel">Chapter 1 of 6</span>
+  <div class="progress__dots" id="progressDots" aria-hidden="true"></div>
+</nav>
 
-          <div id="choices" class="choices"></div>
+<main id="app">
 
-          <button id="primaryAction" class="primary-button" type="button">
-            Follow the light <span>→</span>
-          </button>
-
-          <div id="textInputWrap" class="text-input-wrap hidden">
-            <label for="futureMessage">Write one thing you want your future self to remember.</label>
-            <textarea id="futureMessage" maxlength="220" placeholder="Maybe something simple..."></textarea>
-            <button id="saveMessage" class="primary-button" type="button">Keep this with you ✨</button>
-          </div>
-        </div>
-      </section>
-    </main>
-
-    <footer class="footer">
-      <div class="progress" id="progress" aria-label="Journey progress"></div>
-      <button id="soundToggle" class="sound-button" type="button" aria-label="Toggle sound">
-        <span id="soundIcon">♪</span> Sound
+  <!-- ============ LOADING SCENE ============ -->
+  <section class="scene scene--loading is-active" id="scene-loading" aria-live="polite">
+    <div class="loading">
+      <div class="loading__light" aria-hidden="true"></div>
+      <p class="loading__text" id="loadingText">&nbsp;</p>
+      <button class="btn btn--start" id="startBtn" hidden>
+        <span>Start Journey</span>
+        <span class="btn__spark" aria-hidden="true">✨</span>
       </button>
-    </footer>
-  </div>
+    </div>
+  </section>
 
-  <script src="script.js"></script>
+  <!-- ============ INTRO / TITLE ============ -->
+  <section class="scene" id="scene-title">
+    <div class="panel panel--center">
+      <p class="eyebrow">a small adventure</p>
+      <h1 class="title-serif">The Little Journey</h1>
+      <p class="tagline">A small adventure to discover something you may have forgotten about yourself.</p>
+      <button class="btn btn--primary" data-next="scene-ch1">Begin</button>
+    </div>
+  </section>
+
+  <!-- ============ CHAPTER 1 — THE DOOR ============ -->
+  <section class="scene" id="scene-ch1" data-chapter="1">
+    <div class="panel">
+      <p class="eyebrow">Chapter 1</p>
+      <h2 class="title-serif">The Door</h2>
+      <p class="story-text" data-typewrite>Every journey begins with a choice.</p>
+      <p class="story-text" data-typewrite>Don't overthink it.</p>
+      <p class="story-text" data-typewrite>Choose the door that feels right.</p>
+
+      <div class="doors" id="doors">
+        <button class="door door--gold" data-choice="ch1" data-value="gold" data-label="Golden Door">
+          <span class="door__glow"></span>
+          <span class="door__label">Golden Door</span>
+        </button>
+        <button class="door door--blue" data-choice="ch1" data-value="blue" data-label="Blue Door">
+          <span class="door__glow"></span>
+          <span class="door__label">Blue Door</span>
+        </button>
+        <button class="door door--green" data-choice="ch1" data-value="green" data-label="Green Door">
+          <span class="door__glow"></span>
+          <span class="door__label">Green Door</span>
+        </button>
+      </div>
+
+      <div class="response" id="ch1-response" hidden>
+        <p class="response__line" id="ch1-response-1"></p>
+        <p class="response__line" id="ch1-response-2"></p>
+        <button class="btn btn--primary" data-next="scene-ch2">Continue</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CHAPTER 2 — THE INVISIBLE BACKPACK ============ -->
+  <section class="scene" id="scene-ch2" data-chapter="2">
+    <div class="panel">
+      <p class="eyebrow">Chapter 2</p>
+      <h2 class="title-serif">The Invisible Backpack</h2>
+      <p class="story-text" data-typewrite>Everyone carries something nobody sees.</p>
+      <p class="story-text story-text--question">What would you put inside your backpack?</p>
+
+      <div class="choice-grid" id="ch2-choices">
+        <button class="choice-card" data-choice="ch2" data-value="memories" data-label="Memories">
+          <span class="choice-card__icon">❤️</span>
+          <span class="choice-card__label">Memories</span>
+        </button>
+        <button class="choice-card" data-choice="ch2" data-value="difficult" data-label="Difficult moments">
+          <span class="choice-card__icon">🌧</span>
+          <span class="choice-card__label">Difficult moments</span>
+        </button>
+        <button class="choice-card" data-choice="ch2" data-value="dreams" data-label="Dreams">
+          <span class="choice-card__icon">🌱</span>
+          <span class="choice-card__label">Dreams</span>
+        </button>
+        <button class="choice-card" data-choice="ch2" data-value="lessons" data-label="Lessons">
+          <span class="choice-card__icon">⭐</span>
+          <span class="choice-card__label">Lessons</span>
+        </button>
+      </div>
+
+      <div class="response" id="ch2-response" hidden>
+        <p class="response__line" id="ch2-response-text"></p>
+        <button class="btn btn--primary" data-next="scene-ch3">Continue</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CHAPTER 3 — THE MIRROR ============ -->
+  <section class="scene" id="scene-ch3" data-chapter="3">
+    <div class="panel">
+      <p class="eyebrow">Chapter 3</p>
+      <h2 class="title-serif">The Mirror</h2>
+      <p class="story-text" data-typewrite>This mirror does not show your face.</p>
+      <p class="story-text" data-typewrite>It shows things you sometimes forget about yourself.</p>
+      <p class="story-text story-text--question">What are you proud of?</p>
+
+      <div class="choice-grid choice-grid--list" id="ch3-choices">
+        <button class="choice-card choice-card--wide" data-choice="ch3" data-value="never-gave-up" data-label="I never gave up">
+          <span class="choice-card__label">I never gave up</span>
+        </button>
+        <button class="choice-card choice-card--wide" data-choice="ch3" data-value="care" data-label="I care about people">
+          <span class="choice-card__label">I care about people</span>
+        </button>
+        <button class="choice-card choice-card--wide" data-choice="ch3" data-value="grown" data-label="I have grown">
+          <span class="choice-card__label">I have grown</span>
+        </button>
+        <button class="choice-card choice-card--wide" data-choice="ch3" data-value="still-trying" data-label="I am still trying">
+          <span class="choice-card__label">I am still trying</span>
+        </button>
+      </div>
+
+      <div class="response" id="ch3-response" hidden>
+        <p class="response__line" id="ch3-response-text"></p>
+        <button class="btn btn--primary" data-next="scene-ch4">Continue</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CHAPTER 4 — THE LETTER ============ -->
+  <section class="scene" id="scene-ch4" data-chapter="4">
+    <div class="panel">
+      <p class="eyebrow">Chapter 4</p>
+      <h2 class="title-serif">The Letter</h2>
+      <p class="story-text" data-typewrite>If you could send one message to your future self, what would you say?</p>
+
+      <div class="letter-input" id="letter-input">
+        <textarea id="letterText" maxlength="240" placeholder="Write a few words to yourself..." rows="3"></textarea>
+        <button class="btn btn--primary" id="letterSubmit">Seal the letter</button>
+      </div>
+
+      <div class="response response--letter" id="ch4-response" hidden>
+        <div class="letter-paper">
+          <p class="letter-paper__greeting">Dear future me,</p>
+          <p class="letter-paper__body" id="letterEcho"></p>
+          <p class="letter-paper__closing">I hope you remember:</p>
+          <ul class="letter-paper__list">
+            <li>You were stronger than you thought.</li>
+            <li>You were learning every day.</li>
+            <li>You were becoming someone you could be proud of.</li>
+          </ul>
+        </div>
+        <button class="btn btn--primary" data-next="scene-ch5">Continue</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CHAPTER 5 — THE KINDNESS CHALLENGE ============ -->
+  <section class="scene" id="scene-ch5" data-chapter="5">
+    <div class="panel">
+      <p class="eyebrow">Chapter 5</p>
+      <h2 class="title-serif">The Kindness Challenge</h2>
+      <p class="story-text" data-typewrite>You have the ability to make someone's day better.</p>
+      <p class="story-text story-text--question">What would you give?</p>
+
+      <div class="choice-grid" id="ch5-choices">
+        <button class="choice-card" data-choice="ch5" data-value="compliment" data-label="A compliment">
+          <span class="choice-card__icon">💬</span>
+          <span class="choice-card__label">A compliment</span>
+        </button>
+        <button class="choice-card" data-choice="ch5" data-value="smile" data-label="A smile">
+          <span class="choice-card__icon">🙂</span>
+          <span class="choice-card__label">A smile</span>
+        </button>
+        <button class="choice-card" data-choice="ch5" data-value="help" data-label="Help">
+          <span class="choice-card__icon">🤝</span>
+          <span class="choice-card__label">Help</span>
+        </button>
+        <button class="choice-card" data-choice="ch5" data-value="time" data-label="Time">
+          <span class="choice-card__icon">⏳</span>
+          <span class="choice-card__label">Time</span>
+        </button>
+      </div>
+
+      <div class="response" id="ch5-response" hidden>
+        <p class="response__line" id="ch5-response-text"></p>
+        <button class="btn btn--primary" data-next="scene-final">Continue</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FINAL CHAPTER ============ -->
+  <section class="scene scene--final" id="scene-final" data-chapter="6">
+    <div class="tree-scene" aria-hidden="true">
+      <div class="tree-scene__ground"></div>
+      <svg class="tree" id="memoryTree" viewBox="0 0 300 320" xmlns="http://www.w3.org/2000/svg">
+        <path class="tree__trunk" d="M150 320 C150 260 140 220 150 180 C160 220 150 260 150 320 Z"/>
+        <path class="tree__branch" d="M150 190 C120 170 100 150 80 120"/>
+        <path class="tree__branch" d="M150 190 C180 170 200 150 220 120"/>
+        <path class="tree__branch" d="M150 175 C150 140 150 110 150 80"/>
+        <g id="treeDecor"></g>
+      </svg>
+    </div>
+
+    <div class="panel panel--center panel--final">
+      <p class="final-line" data-typewrite-final>You completed the journey.</p>
+      <p class="final-line" data-typewrite-final>But this game was never about discovering who you are.</p>
+      <p class="final-line" data-typewrite-final>You already knew.</p>
+
+      <div class="final-message" id="finalMessage" hidden>
+        <p>You are someone who is still learning.</p>
+        <p>You are still growing.</p>
+        <p>You are still becoming.</p>
+        <p class="final-message__spacer">You don't need to have everything figured out.</p>
+        <p>Keep your kindness.</p>
+        <p>Keep your curiosity.</p>
+        <p>Keep becoming someone your younger self would be proud of.</p>
+      </div>
+
+      <div class="final-actions" id="finalActions" hidden>
+        <button class="btn btn--ghost" id="restartBtn">Begin again</button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- Floating ambient message, appears briefly between scenes -->
+<div class="ambient-toast" id="ambientToast" aria-live="polite"></div>
+
+<script src="script.js"></script>
 </body>
 </html>

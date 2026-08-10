@@ -1,509 +1,493 @@
-/*
-  THE LITTLE JOURNEY
-  Vanilla JavaScript story engine.
-  No frameworks. No backend. GitHub Pages friendly.
-*/
+/* ==========================================================================
+   THE LITTLE JOURNEY — SCENE ENGINE
+   1. State  2. DOM refs  3. Dialogue reveal helper  4. Audio (bg pad + sfx)
+   5. Particle system (canvas, per-world modes)  6. Companion
+   7. World transition helper  8. World: Room  9. World: Forest
+   10. World: Bridge  11. World: House  12. World: Night  13. World: Sunrise
+   14. Restart  15. Init
+   ========================================================================== */
 
-const scene = document.getElementById("scene");
-const sceneVisual = document.getElementById("sceneVisual");
-const companion = document.getElementById("companion");
-const eyebrow = document.getElementById("eyebrow");
-const title = document.getElementById("title");
-const dialogue = document.getElementById("dialogue");
-const choices = document.getElementById("choices");
-const primaryAction = document.getElementById("primaryAction");
-const textInputWrap = document.getElementById("textInputWrap");
-const futureMessage = document.getElementById("futureMessage");
-const saveMessage = document.getElementById("saveMessage");
-const progress = document.getElementById("progress");
-const chapterIndicator = document.getElementById("chapterIndicator");
-const soundToggle = document.getElementById("soundToggle");
-const soundIcon = document.getElementById("soundIcon");
+(() => {
+  'use strict';
 
-const state = {
-  chapter: 0,
-  door: null,
-  burden: null,
-  proudOf: null,
-  kindness: null,
-  futureMessage: "",
-  sound: true
-};
+  /* ---------- 1. STATE ---------- */
+  const state = { path: null, pride: null, letter: '' };
 
-const chapters = [
-  {
-    eyebrow: "A tiny invitation",
-    title: "There's a little place I want to show you.",
-    dialogue: [
-      "Don't worry. There's no test here.",
-      "Just a short journey. You can take it at your own pace.",
-      "And honestly... I think you might find something interesting along the way."
-    ],
-    action: "Follow the light →",
-    mood: "warm"
-  },
-  {
-    eyebrow: "Chapter one · The Door",
-    title: "Every journey begins with a choice.",
-    dialogue: [
-      "There are three doors in front of you.",
-      "Don't overthink it. Pick the one that feels right."
-    ],
-    choices: [
-      { id: "warm", icon: "☀️", label: "The golden door", hint: "It feels warm somehow." },
-      { id: "calm", icon: "🌊", label: "The blue door", hint: "It feels strangely peaceful." },
-      { id: "growth", icon: "🌿", label: "The green door", hint: "Something beyond it feels alive." }
-    ],
-    mood: "warm"
-  },
-  {
-    eyebrow: "Chapter two · The Invisible Backpack",
-    title: "Everyone carries something nobody sees.",
-    dialogue: [
-      "Imagine you are walking along a quiet path.",
-      "There's a backpack beside you. You can only put one thing inside."
-    ],
-    choices: [
-      { id: "memories", icon: "❤️", label: "Memories", hint: "The good ones are worth keeping." },
-      { id: "difficult", icon: "🌧️", label: "Difficult moments", hint: "You learned something from them." },
-      { id: "dreams", icon: "🌱", label: "Dreams", hint: "Some things are still waiting for you." },
-      { id: "lessons", icon: "⭐", label: "Lessons", hint: "The past has a few things to teach." }
-    ],
-    mood: "forest"
-  },
-  {
-    eyebrow: "Chapter three · The Mirror",
-    title: "This mirror doesn't show your face.",
-    dialogue: [
-      "It shows the things people sometimes forget about themselves.",
-      "Take a second. What are you quietly proud of?"
-    ],
-    choices: [
-      { id: "never-gave-up", icon: "🔥", label: "I never gave up", hint: "Even when it was hard." },
-      { id: "care", icon: "❤️", label: "I care about people", hint: "It matters to me." },
-      { id: "grown", icon: "🌱", label: "I've grown", hint: "I'm not who I used to be." },
-      { id: "trying", icon: "✨", label: "I'm still trying", hint: "And that counts." }
-    ],
-    mood: "blue"
-  },
-  {
-    eyebrow: "Chapter four · The Letter",
-    title: "If you could send one message to your future self...",
-    dialogue: [
-      "What would you want them to remember?",
-      "It doesn't have to sound wise. It doesn't have to be perfect.",
-      "Just make it honest."
-    ],
-    mood: "blue",
-    input: true
-  },
-  {
-    eyebrow: "Chapter five · The Kindness Challenge",
-    title: "You have the power to make someone's day better.",
-    dialogue: [
-      "Not with anything huge.",
-      "Sometimes the smallest things land the deepest.",
-      "What would you give?"
-    ],
-    choices: [
-      { id: "compliment", icon: "🌹", label: "A compliment", hint: "Something they might need to hear." },
-      { id: "smile", icon: "☀️", label: "A smile", hint: "Just a little warmth." },
-      { id: "help", icon: "🤝", label: "A hand", hint: "Help when it is needed." },
-      { id: "time", icon: "🕯️", label: "My time", hint: "Really being there." }
-    ],
-    mood: "warm"
-  },
-  {
-    eyebrow: "The final message",
-    title: "You made it.",
-    dialogue: [
-      "But this journey was never really about discovering who you are.",
-      "You already knew.",
-      "Maybe you just needed a quiet moment to remember."
-    ],
-    mood: "sunrise",
-    final: true
+  const PATH_FLAVOR = {
+    gold: ['You chose warmth.', 'Maybe you are someone who finds happiness in small moments.'],
+    blue: ['You chose calm.', 'Maybe you notice things others often miss.'],
+    green: ['You chose growth.', 'Maybe you believe tomorrow can always be better.']
+  };
+  const PRIDE_FLAVOR = {
+    'never-gave-up': 'Not everyone sees the battles you have won.',
+    'care': 'The world needs more people who still choose kindness.',
+    'grown': 'Growth is not always visible, but it is always meaningful.',
+    'still-trying': 'Trying is underrated. Every change starts with someone refusing to quit.'
+  };
+  const PRIDE_KEYWORD = {
+    'never-gave-up': 'kept going, even when it was hard',
+    'care': 'showed up for the people around you',
+    'grown': 'grew, quietly, in ways you rarely gave yourself credit for',
+    'still-trying': 'kept trying, which counts for more than people admit'
+  };
+  const PATH_KEYWORD = { gold: 'warmth', blue: 'quiet noticing', green: 'a belief that things can get better' };
+
+  const WORLD_ORDER = ['room', 'forest', 'bridge', 'house', 'night', 'sunrise'];
+
+  /* ---------- 2. DOM REFS ---------- */
+  const body = document.body;
+  const worlds = {};
+  WORLD_ORDER.forEach(id => worlds[id] = document.getElementById(`world-${id}`));
+  const companion = document.getElementById('companion');
+  const progressDots = document.getElementById('progressDots');
+  const progressNav = document.getElementById('progress');
+
+  function buildProgress(){
+    WORLD_ORDER.forEach(() => {
+      const dot = document.createElement('span');
+      progressDots.appendChild(dot);
+    });
   }
-];
-
-const responses = {
-  door: {
-    warm: "You chose warmth. Maybe you're someone who notices the little things — a good conversation, a familiar laugh, a moment that makes an ordinary day feel better.",
-    calm: "You chose calm. Maybe you notice things other people rush past. There's something good about being able to slow down and actually see what is around you.",
-    growth: "You chose growth. Maybe part of you believes tomorrow can be better than today. That's a pretty good thing to carry with you."
-  },
-  burden: {
-    memories: "Your memories are part of your story. Keep the ones that make you smile, and let the painful ones teach you without letting them run your life.",
-    difficult: "The difficult moments are real, but they are not the whole story. The fact that you kept moving says more about you than you might give yourself credit for.",
-    dreams: "There is something lovely about people who still have dreams. It means some part of you still believes there is more to discover.",
-    lessons: "The past can teach you a lot. But it doesn't get to decide who you become next."
-  },
-  proud: {
-    "never-gave-up": "That's worth being proud of. Not everyone sees the battles you've had to get through. You do — and you kept going.",
-    care: "Caring about people is not a small thing. The world genuinely needs people who still notice when someone needs a little kindness.",
-    grown: "Growth can be quiet. Sometimes you only notice it when you look back and realize you're handling life differently now.",
-    trying: "Trying counts. Seriously. You don't have to have everything figured out for your effort to mean something."
-  },
-  kindness: {
-    compliment: "A kind sentence can stay with someone for a surprisingly long time. You never really know when someone needs to hear something good.",
-    smile: "A smile sounds small, but sometimes it is exactly enough to make a difficult day feel a little lighter.",
-    help: "Small acts of help are how people make life easier for each other. It doesn't have to be dramatic to matter.",
-    time: "Giving someone your attention is a real gift. Being fully there for someone is rarer than it should be."
+  function updateProgress(worldId){
+    const idx = WORLD_ORDER.indexOf(worldId);
+    [...progressDots.children].forEach((d, i) => d.classList.toggle('is-active', i === idx));
   }
-};
 
-const saved = localStorage.getItem("littleJourneyProgress");
-if (saved) {
-  try {
-    Object.assign(state, JSON.parse(saved));
-  } catch (_) {}
-}
+  /* ---------- 3. DIALOGUE REVEAL HELPER ---------- */
+  function revealLines(lines, startDelay = 300, stagger = 550){
+    return new Promise(resolve => {
+      const arr = [...lines];
+      if (!arr.length){ resolve(); return; }
+      arr.forEach((line, i) => setTimeout(() => line.classList.add('is-visible'), startDelay + i * stagger));
+      setTimeout(resolve, startDelay + (arr.length - 1) * stagger + 800);
+    });
+  }
+  function resetLines(container){
+    container.querySelectorAll('.is-visible').forEach(l => l.classList.remove('is-visible'));
+  }
 
-function saveState() {
-  localStorage.setItem("littleJourneyProgress", JSON.stringify(state));
-}
+  /* ---------- 4. AUDIO ---------- */
+  let audioCtx, muted = false, padNodes = null;
+  function ctx(){
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    return audioCtx;
+  }
 
-function buildProgress() {
-  progress.innerHTML = "";
-  chapters.slice(0, 7).forEach((_, i) => {
-    const dot = document.createElement("span");
-    dot.className = "progress-dot" + (i <= state.chapter ? " active" : "");
-    progress.appendChild(dot);
+  function startAmbientPad(){
+    if (muted || padNodes) return;
+    const c = ctx();
+    const master = c.createGain();
+    master.gain.value = 0.05;
+    master.connect(c.destination);
+
+    const freqs = [110, 164.8, 220]; // soft, slow drone
+    padNodes = { master, oscs: [] };
+    freqs.forEach((f, i) => {
+      const osc = c.createOscillator();
+      const gain = c.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = f;
+      gain.gain.value = 0.5 / (i + 1);
+      osc.connect(gain); gain.connect(master);
+      osc.start();
+      padNodes.oscs.push(osc);
+
+      // slow LFO drift on frequency for a "breathing" ambient feel
+      const lfo = c.createOscillator();
+      const lfoGain = c.createGain();
+      lfo.frequency.value = 0.05 + i * 0.02;
+      lfoGain.gain.value = 1.5;
+      lfo.connect(lfoGain); lfoGain.connect(osc.frequency);
+      lfo.start();
+      padNodes.oscs.push(lfo);
+    });
+  }
+  function stopAmbientPad(){
+    if (!padNodes) return;
+    padNodes.master.gain.setTargetAtTime(0, ctx().currentTime, 0.3);
+    setTimeout(() => {
+      padNodes.oscs.forEach(o => { try{ o.stop(); }catch(e){} });
+      padNodes = null;
+    }, 500);
+  }
+
+  function tone(freq, dur, type = 'sine', vol = 0.06, delay = 0){
+    if (muted) return;
+    const c = ctx();
+    const now = c.currentTime + delay;
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.type = type; osc.frequency.setValueAtTime(freq, now);
+    gain.gain.setValueAtTime(vol, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+    osc.connect(gain); gain.connect(c.destination);
+    osc.start(now); osc.stop(now + dur + 0.05);
+  }
+  function playClick(){ tone(660, 0.18, 'sine', 0.06); }
+  function playWhoosh(){
+    if (muted) return;
+    const c = ctx(); const now = c.currentTime;
+    const osc = c.createOscillator(); const gain = c.createGain();
+    osc.type = 'sine'; osc.frequency.setValueAtTime(240, now);
+    osc.frequency.exponentialRampToValueAtTime(80, now + 0.9);
+    gain.gain.setValueAtTime(0.05, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.9);
+    osc.connect(gain); gain.connect(c.destination);
+    osc.start(now); osc.stop(now + 0.95);
+  }
+  function playFootsteps(kind = 'soft', count = 3){
+    const freqMap = { soft: 180, wood: 260, stone: 140, glass: 500 };
+    for (let i = 0; i < count; i++){
+      tone(freqMap[kind] || 180, 0.09, 'triangle', 0.035, i * 0.22);
+    }
+  }
+  function playChime(){
+    [523.25, 659.25, 784].forEach((f, i) => tone(f, 1.1, 'sine', 0.05, i * 0.16));
+  }
+
+  const soundToggle = document.getElementById('soundToggle');
+  const soundIcon = document.getElementById('soundIcon');
+  soundToggle.addEventListener('click', () => {
+    muted = !muted;
+    soundToggle.classList.toggle('is-muted', muted);
+    soundIcon.textContent = muted ? '✕' : '♪';
+    if (muted) stopAmbientPad(); else startAmbientPad();
   });
-}
 
-function setText(element, value) {
-  element.textContent = value;
-}
+  /* ---------- 5. PARTICLE SYSTEM ---------- */
+  const canvas = document.getElementById('particles');
+  const g = canvas.getContext('2d');
+  let particles = [];
+  let mode = 'none';
+  let mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-function renderChapter(index, transition = true) {
-  state.chapter = index;
-  saveState();
+  function resize(){ canvas.width = innerWidth; canvas.height = innerHeight; }
+  window.addEventListener('resize', () => { resize(); setMode(mode, true); });
+  window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
 
-  const data = chapters[index];
-  if (transition) {
-    scene.classList.add("leaving");
-    setTimeout(() => renderContent(data), 420);
-  } else {
-    renderContent(data);
+  function setMode(next, force){
+    if (mode === next && !force) return;
+    mode = next;
+    const w = canvas.width, h = canvas.height;
+    if (mode === 'dust'){
+      particles = Array.from({ length: 14 }, () => ({ x: Math.random()*w, y: Math.random()*h, r: Math.random()*1.2+.3, s: Math.random()*.15+.03, a: Math.random()*.3+.1 }));
+    } else if (mode === 'fireflies'){
+      particles = Array.from({ length: 16 }, (_, i) => ({
+        x: Math.random()*w, y: h*0.4 + Math.random()*h*0.5, r: Math.random()*2+1,
+        vx:(Math.random()-.5)*.3, vy:(Math.random()-.5)*.3, a: Math.random()*.6+.3, leader: i === 0
+      }));
+    } else if (mode === 'stars'){
+      particles = Array.from({ length: 60 }, () => ({ x: Math.random()*w, y: Math.random()*h*0.7, r: Math.random()*1.4+.3, a: Math.random()*.8+.2, tw: Math.random()*0.02+0.005 }));
+    } else if (mode === 'motes'){
+      particles = Array.from({ length: 22 }, () => ({ x: Math.random()*w, y: Math.random()*h, r: Math.random()*1.5+.4, s: Math.random()*.25+.05, a: Math.random()*.4+.1 }));
+    } else {
+      particles = [];
+    }
   }
-}
 
-function renderContent(data) {
-  scene.classList.remove("leaving");
-  scene.classList.remove("arriving");
-  void scene.offsetWidth;
-  scene.classList.add("arriving");
+  let shootingStar = null;
+  function maybeSpawnShootingStar(){
+    if (mode !== 'stars' || reduceMotion) return;
+    if (Math.random() < 0.002 && !shootingStar){
+      shootingStar = { x: Math.random()*canvas.width*0.6, y: Math.random()*canvas.height*0.2, vx: 6, vy: 3, life: 60 };
+    }
+  }
 
-  eyebrow.textContent = data.eyebrow;
-  title.textContent = data.title;
-  dialogue.innerHTML = data.dialogue.map(text => `<p>${escapeHTML(text)}</p>`).join("");
-  choices.innerHTML = "";
-  textInputWrap.classList.add("hidden");
-  primaryAction.classList.remove("hidden");
-  primaryAction.textContent = data.action || "Continue →";
+  function drawParticles(){
+    g.clearRect(0, 0, canvas.width, canvas.height);
 
-  scene.dataset.mood = data.mood || "warm";
-  chapterIndicator.textContent = data.final ? "A little reminder" : `Chapter ${state.chapter} of 6`;
+    if (mode === 'dust' || mode === 'motes'){
+      particles.forEach(p => {
+        p.y -= p.s; if (p.y < -5) p.y = canvas.height + 5;
+        g.beginPath(); g.arc(p.x, p.y, p.r, 0, Math.PI*2);
+        g.fillStyle = `rgba(255,214,166,${p.a})`; g.fill();
+      });
+    } else if (mode === 'fireflies'){
+      particles.forEach(p => {
+        if (p.leader){
+          p.x += (mouse.x - p.x) * 0.02;
+          p.y += (mouse.y - p.y) * 0.02;
+        } else {
+          p.x += p.vx; p.y += p.vy;
+          if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
+          if (p.y < canvas.height*0.35 || p.y > canvas.height) p.vy *= -1;
+        }
+        const flicker = p.a * (0.7 + Math.sin(Date.now()/300 + p.x) * 0.3);
+        g.beginPath(); g.arc(p.x, p.y, p.r, 0, Math.PI*2);
+        g.fillStyle = `rgba(255,214,120,${flicker})`;
+        g.shadowBlur = 8; g.shadowColor = 'rgba(255,214,120,.8)';
+        g.fill(); g.shadowBlur = 0;
+      });
+    } else if (mode === 'stars'){
+      particles.forEach(p => {
+        p.a += (Math.random() - 0.5) * p.tw;
+        p.a = Math.max(0.15, Math.min(1, p.a));
+        g.beginPath(); g.arc(p.x, p.y, p.r, 0, Math.PI*2);
+        g.fillStyle = `rgba(255,255,255,${p.a})`; g.fill();
+      });
+      maybeSpawnShootingStar();
+      if (shootingStar){
+        const s = shootingStar;
+        g.strokeStyle = 'rgba(255,255,255,.9)';
+        g.lineWidth = 2;
+        g.beginPath(); g.moveTo(s.x, s.y); g.lineTo(s.x - s.vx*6, s.y - s.vy*6); g.stroke();
+        s.x += s.vx; s.y += s.vy; s.life--;
+        if (s.life <= 0 || s.x > canvas.width || s.y > canvas.height) shootingStar = null;
+      }
+    }
 
-  if (data.choices) {
-    primaryAction.classList.add("hidden");
-    data.choices.forEach(choice => {
-      const button = document.createElement("button");
-      button.className = "choice";
-      button.type = "button";
-      button.innerHTML = `<strong>${choice.icon} ${escapeHTML(choice.label)}</strong><small>${escapeHTML(choice.hint)}</small>`;
-      button.addEventListener("click", () => choose(data, choice, button));
-      choices.appendChild(button);
+    if (!reduceMotion) requestAnimationFrame(drawParticles);
+  }
+
+  /* ---------- 6. COMPANION ---------- */
+  function companionTurn(){
+    companion.classList.add('is-turning');
+    setTimeout(() => companion.classList.remove('is-turning'), 900);
+  }
+  setInterval(() => { if (Math.random() < 0.4) companionTurn(); }, 9000);
+
+  /* ---------- 7. WORLD TRANSITION HELPER ---------- */
+  let currentWorldId = 'room';
+
+  function transitionTo(nextId, { camClass = 'world--pan-forward', footstep = 'soft', camDuration = 1400 } = {}){
+    const outgoing = worlds[currentWorldId];
+    const incoming = worlds[nextId];
+    playWhoosh();
+    playFootsteps(footstep);
+    outgoing.classList.add(camClass);
+
+    setTimeout(() => {
+      outgoing.classList.remove('is-active', camClass);
+      body.setAttribute('data-world', nextId);
+      incoming.classList.add('is-active');
+      currentWorldId = nextId;
+      updateProgress(nextId);
+      enterWorld(nextId);
+    }, camDuration);
+  }
+
+  function enterWorld(id){
+    if (id === 'forest') setMode('fireflies');
+    else if (id === 'night') setMode('stars');
+    else if (id === 'sunrise') setMode('motes');
+    else if (id === 'room') setMode('dust');
+    else setMode('none');
+
+    if (id === 'forest') return enterForest();
+    if (id === 'bridge') return enterBridge();
+    if (id === 'house') return enterHouse();
+    if (id === 'night') return enterNight();
+    if (id === 'sunrise') return enterSunrise();
+  }
+
+  /* ---------- 8. WORLD: ROOM ---------- */
+  function enterRoom(){
+    setMode('dust');
+    const lines = document.querySelectorAll('#dialogue-room [data-line]');
+    revealLines(lines).then(() => {
+      const door = document.getElementById('roomDoor');
+      door.classList.add('is-visible');
+      tone(440, 1.2, 'sine', 0.03);
+      setTimeout(() => { document.getElementById('choices-room').hidden = false; }, 900);
     });
   }
 
-  if (data.input) {
-    primaryAction.classList.add("hidden");
-    textInputWrap.classList.remove("hidden");
-    futureMessage.value = state.futureMessage || "";
-    setTimeout(() => futureMessage.focus(), 300);
-  }
-
-  if (data.final) renderFinal();
-  buildProgress();
-}
-
-function choose(data, choice, button) {
-  [...choices.children].forEach(el => el.classList.remove("selected"));
-  button.classList.add("selected");
-  softChime();
-
-  let response = "";
-
-  if (state.chapter === 1) {
-    state.door = choice.id;
-    response = responses.door[choice.id];
-  } else if (state.chapter === 2) {
-    state.burden = choice.id;
-    response = responses.burden[choice.id];
-  } else if (state.chapter === 3) {
-    state.proudOf = choice.id;
-    response = responses.proud[choice.id];
-  } else if (state.chapter === 5) {
-    state.kindness = choice.id;
-    response = responses.kindness[choice.id];
-  }
-
-  saveState();
-
-  setTimeout(() => {
-    dialogue.innerHTML = `<p>${escapeHTML(response)}</p><p class="choice-followup">Interesting choice. Keep walking.</p>`;
-    primaryAction.classList.remove("hidden");
-    primaryAction.textContent = state.chapter === 5 ? "See where this leads →" : "Keep going →";
-  }, 450);
-}
-
-primaryAction.addEventListener("click", () => {
-  if (state.chapter === 0) {
-    startJourneyAudio();
-  }
-  if (state.chapter < chapters.length - 1) {
-    renderChapter(state.chapter + 1);
-  }
-});
-
-saveMessage.addEventListener("click", () => {
-  const value = futureMessage.value.trim();
-  if (!value) {
-    futureMessage.focus();
-    futureMessage.placeholder = "Write something honest. Even one sentence is enough.";
-    return;
-  }
-
-  state.futureMessage = value;
-  saveState();
-  softChime();
-
-  textInputWrap.classList.add("hidden");
-  primaryAction.classList.remove("hidden");
-  primaryAction.textContent = "Continue →";
-
-  dialogue.innerHTML = `
-    <p>Keep that somewhere safe.</p>
-    <p>One day, you might read it again and realize how far you've come.</p>
-  `;
-});
-
-function renderFinal() {
-  const future = state.futureMessage
-    ? `<div class="letter"><strong>A little note from you, to you:</strong><br><br>“${escapeHTML(state.futureMessage)}”</div>`
-    : "";
-
-  const combined = getFinalReflection();
-
-  dialogue.innerHTML = `
-    <p class="final-message">${escapeHTML(combined)}</p>
-    ${future}
-  `;
-
-  choices.innerHTML = "";
-  primaryAction.textContent = "Take the journey again ↻";
-  primaryAction.classList.remove("hidden");
-  primaryAction.onclick = restartJourney;
-  scene.classList.add("celebrate");
-
-  burstConfetti();
-}
-
-function getFinalReflection() {
-  const parts = [];
-
-  if (state.door === "warm") {
-    parts.push("You seem to notice warmth in small things.");
-  } else if (state.door === "calm") {
-    parts.push("You seem to value quiet moments and the things that are easy to miss.");
-  } else {
-    parts.push("You seem to have a part of you that still believes in becoming something better.");
-  }
-
-  if (state.proudOf === "care") {
-    parts.push("And you care about people — don't let the world convince you that softness is weakness.");
-  } else if (state.proudOf === "never-gave-up") {
-    parts.push("You've kept going through things other people may never know about.");
-  } else if (state.proudOf === "grown") {
-    parts.push("You've changed, and that's a good thing.");
-  } else if (state.proudOf === "trying") {
-    parts.push("You're still trying, and that matters more than having all the answers.");
-  }
-
-  if (state.kindness === "time") {
-    parts.push("You chose to give time, too. That's one of the most human things you can give.");
-  } else if (state.kindness === "compliment") {
-    parts.push("You chose words that could make somebody feel seen.");
-  }
-
-  parts.push("So keep your curiosity. Keep your kindness. Keep becoming.");
-  parts.push("You don't need to have everything figured out to be doing okay.");
-
-  return parts.join(" ");
-}
-
-function restartJourney() {
-  Object.assign(state, {
-    chapter: 0,
-    door: null,
-    burden: null,
-    proudOf: null,
-    kindness: null,
-    futureMessage: ""
+  document.querySelector('[data-action="open-door"]').addEventListener('click', () => {
+    playClick();
+    document.getElementById('choices-room').hidden = true;
+    transitionTo('forest', { camClass: 'world--zoom-out', footstep: 'soft', camDuration: 1500 });
   });
-  saveState();
-  scene.classList.remove("celebrate");
-  primaryAction.onclick = null;
-  renderChapter(0);
-}
 
-function escapeHTML(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-/* ---------------------------
-   Lightweight ambient particles
----------------------------- */
-const canvas = document.getElementById("particleCanvas");
-const ctx = canvas.getContext("2d");
-let particles = [];
-
-function resizeCanvas() {
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  canvas.width = innerWidth * dpr;
-  canvas.height = innerHeight * dpr;
-  canvas.style.width = `${innerWidth}px`;
-  canvas.style.height = `${innerHeight}px`;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-}
-
-function seedParticles() {
-  particles = Array.from({ length: Math.min(70, Math.floor(innerWidth / 15)) }, () => ({
-    x: Math.random() * innerWidth,
-    y: Math.random() * innerHeight,
-    r: Math.random() * 1.8 + .3,
-    a: Math.random() * .45 + .08,
-    speed: Math.random() * .22 + .05,
-    drift: (Math.random() - .5) * .12
-  }));
-}
-
-function animateParticles() {
-  ctx.clearRect(0, 0, innerWidth, innerHeight);
-  particles.forEach(p => {
-    p.y -= p.speed;
-    p.x += p.drift;
-    if (p.y < -10) {
-      p.y = innerHeight + 10;
-      p.x = Math.random() * innerWidth;
-    }
-    if (p.x < -10) p.x = innerWidth + 10;
-    if (p.x > innerWidth + 10) p.x = -10;
-
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(255, 241, 190, ${p.a})`;
-    ctx.fill();
+  /* ---------- 9. WORLD: FOREST ---------- */
+  function enterForest(){
+    const lines = document.querySelectorAll('#dialogue-forest [data-line]');
+    revealLines(lines).then(() => { document.getElementById('choices-forest').hidden = false; });
+  }
+  document.querySelectorAll('[data-action="choose-path"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      playClick();
+      const value = btn.dataset.value;
+      state.path = value;
+      document.querySelectorAll('[data-action="choose-path"]').forEach(b => {
+        b.classList.toggle('is-chosen', b === btn);
+        b.classList.toggle('is-faded', b !== btn);
+      });
+      const [l1, l2] = PATH_FLAVOR[value];
+      document.getElementById('forestResponse1').textContent = l1;
+      document.getElementById('forestResponse2').textContent = l2;
+      const resp = document.getElementById('response-forest');
+      resp.hidden = false;
+      revealLines(resp.querySelectorAll('.dialogue__line--reveal'), 100, 400);
+      // recolor the path glow to match the choice
+      const pathEl = document.getElementById('forestPath');
+      const colorMap = { gold: 'rgba(255,209,102,.35)', blue: 'rgba(127,176,255,.35)', green: 'rgba(127,224,167,.35)' };
+      pathEl.style.background = `linear-gradient(180deg, transparent, ${colorMap[value]})`;
+    });
   });
-  requestAnimationFrame(animateParticles);
-}
-
-window.addEventListener("resize", () => {
-  resizeCanvas();
-  seedParticles();
-});
-
-resizeCanvas();
-seedParticles();
-animateParticles();
-
-/* ---------------------------
-   Tiny Web Audio layer
-   Starts only after user interaction.
----------------------------- */
-let audioContext = null;
-let masterGain = null;
-
-function ensureAudio() {
-  if (!state.sound) return null;
-  if (!audioContext) {
-    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    masterGain = audioContext.createGain();
-    masterGain.gain.value = 0.055;
-    masterGain.connect(audioContext.destination);
-  }
-  if (audioContext.state === "suspended") audioContext.resume();
-  return audioContext;
-}
-
-function softChime() {
-  const ac = ensureAudio();
-  if (!ac) return;
-  const now = ac.currentTime;
-  [523.25, 659.25].forEach((freq, i) => {
-    const osc = ac.createOscillator();
-    const gain = ac.createGain();
-    osc.type = "sine";
-    osc.frequency.value = freq;
-    gain.gain.setValueAtTime(0.0001, now + i * .05);
-    gain.gain.exponentialRampToValueAtTime(.35, now + i * .05 + .025);
-    gain.gain.exponentialRampToValueAtTime(.0001, now + i * .05 + .5);
-    osc.connect(gain).connect(masterGain);
-    osc.start(now + i * .05);
-    osc.stop(now + i * .05 + .55);
+  document.querySelector('[data-action="follow-path"]').addEventListener('click', () => {
+    playClick();
+    document.getElementById('choices-forest').hidden = true;
+    document.getElementById('response-forest').hidden = true;
+    transitionTo('bridge', { camClass: 'world--pan-forward', footstep: 'soft', camDuration: 1500 });
   });
-}
 
-function startJourneyAudio() {
-  ensureAudio();
-  softChime();
-}
-
-soundToggle.addEventListener("click", () => {
-  state.sound = !state.sound;
-  soundIcon.textContent = state.sound ? "♪" : "×";
-  saveState();
-  if (state.sound) {
-    ensureAudio();
-    softChime();
+  /* ---------- 10. WORLD: BRIDGE ---------- */
+  function enterBridge(){
+    const lines = document.querySelectorAll('#dialogue-bridge [data-line]');
+    revealLines(lines).then(() => {
+      const box = document.getElementById('choices-bridge');
+      box.hidden = false;
+      revealLines(box.querySelectorAll('.dialogue__line--reveal'), 100, 0);
+    });
   }
-});
+  document.querySelector('[data-action="look-back"]').addEventListener('click', () => {
+    playClick();
+    tone(300, 1.4, 'sine', 0.03);
+    document.getElementById('bridgeCamera').classList.add('world--rotate-back');
+    document.getElementById('bridgeRearview').hidden = false;
+    requestAnimationFrame(() => document.getElementById('bridgeRearview').classList.add('is-visible'));
+    setTimeout(() => {
+      document.getElementById('choices-bridge').hidden = true;
+      const resp = document.getElementById('response-bridge');
+      resp.hidden = false;
+      revealLines(resp.querySelectorAll('.dialogue__line--reveal'), 100, 0);
+    }, 1600);
+  });
+  document.querySelector('[data-action="cross-bridge"]').addEventListener('click', () => {
+    playClick();
+    document.getElementById('bridgeRearview').classList.remove('is-visible');
+    document.getElementById('bridgeCamera').classList.remove('world--rotate-back');
+    document.getElementById('response-bridge').hidden = true;
+    transitionTo('house', { camClass: 'world--pan-forward', footstep: 'wood', camDuration: 1500 });
+  });
 
-function burstConfetti() {
-  const colors = ["#ffd166", "#ffb7c5", "#ffffff", "#a7e8b2", "#9fd8ff"];
-  for (let i = 0; i < 34; i++) {
-    const piece = document.createElement("span");
-    piece.style.position = "fixed";
-    piece.style.left = `${50 + (Math.random() - .5) * 16}%`;
-    piece.style.top = "45%";
-    piece.style.width = "7px";
-    piece.style.height = "11px";
-    piece.style.background = colors[Math.floor(Math.random() * colors.length)];
-    piece.style.borderRadius = "2px";
-    piece.style.zIndex = "30";
-    piece.style.pointerEvents = "none";
-    document.body.appendChild(piece);
-
-    const dx = (Math.random() - .5) * 420;
-    const dy = 250 + Math.random() * 420;
-    const rot = Math.random() * 720 - 360;
-
-    piece.animate([
-      { transform: "translate(-50%, -50%) rotate(0deg)", opacity: 1 },
-      { transform: `translate(calc(-50% + ${dx}px), ${dy}px) rotate(${rot}deg)`, opacity: 0 }
-    ], {
-      duration: 1200 + Math.random() * 800,
-      easing: "cubic-bezier(.2,.8,.2,1)"
-    }).onfinish = () => piece.remove();
+  /* ---------- 11. WORLD: HOUSE ---------- */
+  function enterHouse(){
+    const lines = document.querySelectorAll('#dialogue-house [data-line]');
+    revealLines(lines).then(() => { document.getElementById('choices-house').hidden = false; });
   }
-}
+  document.querySelectorAll('[data-action="choose-mirror"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      playClick();
+      const value = btn.dataset.value;
+      state.pride = value;
+      document.querySelectorAll('[data-action="choose-mirror"]').forEach(b => {
+        b.classList.toggle('is-chosen', b === btn);
+        b.classList.toggle('is-faded', b !== btn);
+      });
+      const ripple = document.getElementById('mirrorRipple');
+      ripple.classList.remove('is-active'); void ripple.offsetWidth; ripple.classList.add('is-active');
+      tone(520, 1, 'sine', 0.04);
+      document.getElementById('mirrorPrompt').textContent = PRIDE_FLAVOR[value];
+      document.getElementById('choices-house').hidden = true;
+      const resp = document.getElementById('response-house');
+      document.getElementById('houseResponse').textContent = PRIDE_FLAVOR[value];
+      resp.hidden = false;
+      revealLines(resp.querySelectorAll('.dialogue__line--reveal'), 200, 0);
+    });
+  });
+  document.querySelector('[data-action="leave-house"]').addEventListener('click', () => {
+    playClick();
+    document.getElementById('response-house').hidden = true;
+    transitionTo('night', { camClass: 'world--rise', footstep: 'stone', camDuration: 1600 });
+  });
 
-/* First render */
-renderChapter(Math.min(state.chapter, chapters.length - 1), false);
+  /* ---------- 12. WORLD: NIGHT ---------- */
+  function enterNight(){
+    const lines = document.querySelectorAll('#dialogue-night [data-line]');
+    revealLines(lines).then(() => { document.getElementById('lanternInput').hidden = false; });
+  }
+  document.getElementById('letterSubmit').addEventListener('click', () => {
+    playClick();
+    const val = document.getElementById('letterText').value.trim();
+    state.letter = val;
+    document.getElementById('lanternInput').hidden = true;
+    document.getElementById('lanternScene').hidden = false;
+  });
+  document.getElementById('releaseLantern').addEventListener('click', (e) => {
+    playChime();
+    const lantern = document.getElementById('lantern');
+    lantern.classList.add('is-released');
+    e.target.hidden = true;
+    setTimeout(() => {
+      const box = document.getElementById('choices-night');
+      box.hidden = false;
+    }, 3800);
+  });
+  document.querySelector('[data-action="descend"]').addEventListener('click', () => {
+    playClick();
+    document.getElementById('choices-night').hidden = true;
+    document.getElementById('lanternScene').hidden = true;
+    transitionTo('sunrise', { camClass: 'world--descend', footstep: 'soft', camDuration: 1700 });
+  });
+
+  /* ---------- 13. WORLD: SUNRISE ---------- */
+  function enterSunrise(){
+    const lines = document.querySelectorAll('#dialogue-sunrise [data-line]');
+    revealLines(lines).then(() => {
+      document.getElementById('recap').hidden = false;
+      setTimeout(showFinalWords, 5 * 220 + 900);
+    });
+  }
+  function showFinalWords(){
+    const box = document.getElementById('finalWords');
+    box.hidden = false;
+    const pathWord = state.path ? PATH_KEYWORD[state.path] : 'the path you chose';
+    const prideWord = state.pride ? PRIDE_KEYWORD[state.pride] : 'more than you give yourself credit for';
+    const reflection = `Somewhere in there: ${pathWord}. And the quiet fact that you ${prideWord}.`;
+    document.getElementById('finalReflection').textContent = reflection;
+    revealLines(box.querySelectorAll('.dialogue__line--reveal'), 200, 700);
+    playChime();
+    const totalDelay = 200 + 3 * 700 + 900;
+    setTimeout(() => { document.getElementById('restartRow').hidden = false; }, totalDelay);
+  }
+
+  /* ---------- 14. RESTART ---------- */
+  document.getElementById('restartBtn').addEventListener('click', () => {
+    playClick();
+    // reset state
+    state.path = null; state.pride = null; state.letter = '';
+
+    // reset all worlds' UI
+    Object.values(worlds).forEach(w => { w.classList.remove('is-active'); w.querySelectorAll('[class*="world--"]').forEach(()=>{}); });
+    ['choices-room','choices-forest','response-forest','choices-bridge','response-bridge',
+     'choices-house','response-house','lanternInput','lanternScene','choices-night',
+     'recap','finalWords','restartRow'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.hidden = true;
+    });
+    document.querySelectorAll('.dialogue__line').forEach(l => l.classList.remove('is-visible'));
+    document.getElementById('roomDoor').classList.remove('is-visible');
+    document.querySelectorAll('.path-choice, .choice-card').forEach(c => c.classList.remove('is-chosen','is-faded'));
+    document.getElementById('bridgeRearview').hidden = true;
+    document.getElementById('bridgeRearview').classList.remove('is-visible');
+    document.getElementById('lantern').classList.remove('is-released');
+    document.getElementById('letterText').value = '';
+    document.getElementById('lanternScene').querySelector('#releaseLantern').hidden = false;
+
+    body.setAttribute('data-world', 'room');
+    worlds.room.classList.add('is-active');
+    currentWorldId = 'room';
+    updateProgress('room');
+
+    document.getElementById('titleCard').classList.remove('is-hidden');
+  });
+
+  /* ---------- 15. INIT ---------- */
+  document.getElementById('startBtn').addEventListener('click', () => {
+    playClick();
+    startAmbientPad();
+    document.getElementById('titleCard').classList.add('is-hidden');
+    progressNav.hidden = false;
+    updateProgress('room');
+    enterRoom();
+  }, { once: false });
+
+  function init(){
+    buildProgress();
+    resize();
+    if (!reduceMotion) requestAnimationFrame(drawParticles);
+  }
+
+  init();
+})();
